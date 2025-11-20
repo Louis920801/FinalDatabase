@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en" data-theme="emerald">
+  <head style="height: 100%; width: 100%;">
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@2.12.0/dist/full.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <title>國立台北科技大學附屬診所</title>
+  </head>
+  <body style="height: 100%; width: 100%; overflow-x: hidden;">
+    <!-- navbar -->
+    <div class="navbar mb-2 fixed w-full z-50  top-0 border-b bg-base-100 text-base-content ">
+      <div class="px-2 mx-2 navbar-start">
+          <span class="text-lg font-bold">
+            <a href="/">國立台北科技大學附屬診所</a>
+          </span>
+      </div> 
+      <div class="hidden px-2 mx-2 navbar-center lg:flex">
+        <div class="flex items-stretch">
+          <ul class="menu menu-horizontal">
+            <li>
+              <a href="/" class="ghost-btn rounded-lg">Home</a>
+              <a href="pick_table" class="ghost-btn rounded-lg">Edit</a>
+            </li> 
+          </ul>
+        </div>
+      </div> 
+      <div class="navbar-end">
+        <div class="dropdown dropdown-end">
+          <div tabindex="0" class="m-1 btn btn-square btn-ghost lg:hidden">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-6 h-6 stroke-current">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+            </svg>
+          </div> 
+          <ul tabindex="0" class="p-2 shadow menu dropdown-content bg-base-100 rounded-box w-52">
+            <li>
+              <a href="/" >Home</a>
+              <a href="pick_table" >Edit</a>
+            </li> 
+            
+          </ul>
+        </div>
+        <!-- <button class="btn btn-square btn-ghost">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-6 h-6 stroke-current">             
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>             
+          </svg>
+        </button> -->
+      </div>
+  </div>
+
+
+  <!-- hero -->
+  <div class="min-h-screen bg-base-100 p-16 lg:p-32">
+    <div class="flex-col">
+      <div class="form-control">
+        <div class="flex-row gap-2 pl-4">
+          <a href="edit" name="edit" class="btn btn-primary mr-2 gap-2" >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l2.293 2.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+            </svg>
+            Back</a>
+        </div>
+      </div>
+    </div>
+    <div class="hero-content flex-col lg:flex-row gap-16">
+        
+        <div class="flex-col w-full">
+            <h1 class="font-bold text-xl p-2">Before Deletion</h1>
+            <div class="card overflow-x-auto w-full shadow-xl">
+                <table class="table w-full">
+                {{ tables[0]|safe  }}
+                </table>
+            </div>
+        </div>
+
+        <div class="flex-col w-full">
+            <h1 class="font-bold text-xl p-2">After Deletion</h1>
+            <div class="card overflow-x-auto w-full shadow-xl">
+                <table class="table w-full">
+                {{ tables[1]|safe  }}
+                </table>
+            </div>
+        </div>
+
+    </div>
+  </div>
+
+  <!-- footer -->
+
+  <footer class="footer p-10 bg-base-200 text-base-content">
+    <div>
+      <h1 class="text-xl font-bold">國立台北科技大學附屬診所</h1>
+      <p>Made with Flask and MySQL</p>
+    </div> 
+    <div>
+      <span class="footer-title">Commands</span> 
+      <p>Update</p> 
+      <p>Insert</p> 
+      <p>Delete</p> 
+    </div> 
+  
+    <div>
+      <span class="footer-title">前端工程師</span> 
+      <p>114368062 范祥偉</p> 
+      <p>114368063 蔡霆鋒</p> 
+    </div>
+    <div>
+      <span class="footer-title">資料庫設計</span> 
+      <p>114368062 范祥偉</p> 
+      <p>114368063 蔡霆鋒</p> 
+    </div>
+  </footer>
+
+  </body>
+</html>
