@@ -1,13 +1,15 @@
 <!doctype html>
-<html lang="en" data-theme="emerald">
+<html lang="zh-tw" data-theme="emerald">
   <head style="height: 100%; width: 100%;">
     <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-    <link href="https://cdn.jsdelivr.net/npm/daisyui@2.12.0/dist/full.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/immersive-translate.css') }}">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
 
     <title>國立台北科技大學附屬診所</title>
   </head>
@@ -23,8 +25,8 @@
         <div class="flex items-stretch">
           <ul class="menu menu-horizontal">
             <li>
-              <a href="/" class="ghost-btn rounded-lg">Home</a>
-              <a href="pick_table" class="ghost-btn rounded-lg">Edit</a>
+              <a href="/" class="ghost-btn rounded-lg">首頁</a>
+              <!-- edit removed -->
             </li> 
           </ul>
         </div>
@@ -39,7 +41,7 @@
           <ul tabindex="0" class="p-2 shadow menu dropdown-content bg-base-100 rounded-box w-52">
             <li>
               <a href="/" >Home</a>
-              <a href="pick_table" >Edit</a>
+              <!-- edit removed -->
             </li> 
             
           </ul>
@@ -94,13 +96,12 @@
   <footer class="footer p-10 bg-base-200 text-base-content">
     <div>
       <h1 class="text-xl font-bold">國立台北科技大學附屬診所</h1>
-      <p>Made with Flask and MySQL</p>
+      <p>北科大 醫電工程與感測器網路實驗室</p>
     </div> 
     <div>
-      <span class="footer-title">Commands</span> 
-      <p>Update</p> 
-      <p>Insert</p> 
-      <p>Delete</p> 
+      <span class="footer-title">所址： 10608臺北市大安區忠孝東路三段1號</span> 
+      <p>總機： #2253</p> 
+      <p>負責人： 蔡霆鋒</p> 
     </div> 
   
     <div>

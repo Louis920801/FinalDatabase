@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session
 from flask_mysqldb import MySQL
 from sql_helper import *
 from html_helper import *
+from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
 app.debug = True
@@ -37,7 +38,8 @@ def index():
 @app.route('/', methods=['POST'])
 def choose():
     if request.form.get("start"):
-        return redirect(url_for('pick_table'))
+        # redirect staff login attempts to the login page first
+        return redirect(url_for('login'))
     else:
         return render_template('index.html')
 
@@ -61,6 +63,10 @@ def choose():
 
 @app.route("/pick_table", methods=["GET", "POST"])
 def pick_table():
+    # Require staff login before allowing access to the table editor
+    if not session.get('staff_logged_in'):
+        return redirect(url_for('login'))
+
     DB_NAME = "hospitalDB"
 
     try:
@@ -233,6 +239,53 @@ def edit():
     table = nested_list_to_html_table(select_with_headers(mysql, table_name), buttons=True)
     return render_template('edit.html', table=table, table_name=table_name, operation=operation, form_html=form_html)
 
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    # Secure admin login: verify username/password against admin table using
+    # parameterized queries and password hashing to prevent SQL injection.
+    if request.method == 'POST':
+        username = (request.form.get('username') or '').strip()
+        password = (request.form.get('password') or '').strip()
+        if not username or not password:
+            return render_template('login.html', error='請輸入使用者名稱與密碼')
+
+        try:
+            cur = mysql.connection.cursor()
+            # parameterized query prevents SQL injection
+            cur.execute("SELECT password_hash FROM admin WHERE username = %s", (username,))
+            row = cur.fetchone()
+            cur.close()
+
+            if not row:
+                return render_template('login.html', error='使用者不存在')
+
+            # row may be a dict (DictCursor) or tuple
+            pwd_hash = None
+            if isinstance(row, dict):
+                pwd_hash = row.get('password_hash')
+            else:
+                pwd_hash = row[0]
+
+            if pwd_hash and check_password_hash(pwd_hash, password):
+                session['staff_logged_in'] = True
+                session['staff_user'] = username
+                session.permanent = True
+                app.permanent_session_lifetime = 3600  # 1小時（3600秒）= 可自行調整
+                return redirect(url_for('pick_table'))
+            else:
+                return render_template('login.html', error='帳號或密碼錯誤')
+
+        except Exception as e:
+            return render_template('login.html', error=f'登入失敗：{repr(e)}')
+
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
 @app.route("/ping")
 def ping():
     cur = mysql.connection.cursor()
@@ -240,6 +293,202 @@ def ping():
     dbname = cur.fetchone()[0]
     cur.close()
     return {"ok": True, "db": dbname}
+
+
+@app.route('/appointment', methods=['GET', 'POST'])
+def appointment():
+    # Appointment page: on POST create appointment (create patient if name given)
+    if request.method == 'POST':
+        patient_input = (request.form.get('patientID') or '').strip()
+        patient_name = (request.form.get('patientName') or '').strip()
+        staff_id = (request.form.get('staffID') or '').strip()
+        atime = (request.form.get('appointmentTime') or '').strip()
+
+        try:
+            cur = mysql.connection.cursor()
+
+            # Resolve patient: patient_input is expected to be national ID (e.g. F123456789)
+            # Ensure patient table has a national_id column (create if missing)
+            patient_id = None
+            nid = patient_input
+            # basic server-side validation for national id format
+            import re
+            nid_re = re.compile(r'^[A-Z][0-9]{9}$')
+            if not nid or not nid_re.match(nid):
+                cur.close()
+                return render_template('appointment.html', submitted=True, error='病患身份證格式錯誤', patient=patient_input, staff=staff_id, atime=atime)
+
+            try:
+                cur.execute("SELECT patientID FROM patient WHERE national_id = %s", (nid,))
+                row = cur.fetchone()
+            except Exception as e:
+                # If the column doesn't exist, add it (non-unique to avoid ALTER failures)
+                msg = str(e)
+                if 'Unknown column' in msg or '1054' in msg:
+                    try:
+                        cur.execute("ALTER TABLE patient ADD COLUMN national_id VARCHAR(20)")
+                        mysql.connection.commit()
+                    except Exception:
+                        pass
+                    # retry select
+                    try:
+                        cur.execute("SELECT patientID FROM patient WHERE national_id = %s", (nid,))
+                        row = cur.fetchone()
+                    except Exception:
+                        row = None
+                else:
+                    raise
+
+            if row:
+                # dict cursor or tuple
+                if isinstance(row, dict):
+                    patient_id = row.get('patientID')
+                else:
+                    patient_id = row[0]
+            else:
+                # create new patient with name + national id
+                cur.execute("INSERT INTO patient (name, national_id) VALUES (%s, %s)", (patient_name or None, nid))
+                mysql.connection.commit()
+                patient_id = cur.lastrowid
+
+            # staff_id must be numeric
+            staff_id_int = int(staff_id) if staff_id.isnumeric() else None
+
+            if not patient_id or not staff_id_int or not atime:
+                cur.close()
+                return render_template('appointment.html', submitted=True, error='請提供有效的病患、醫師與時間.', patient=patient_input, staff=staff_id, atime=atime)
+
+            # Prevent duplicate booking: same patient (national id) cannot book the same session twice
+            # Determine session window based on appointment time
+            try:
+                parts = atime.split(' ')
+                date_part = parts[0]
+                time_part = parts[1] if len(parts) > 1 else ''
+            except Exception:
+                date_part = ''
+                time_part = ''
+
+            SESSIONS = [
+                ('09:00:00','12:00:00'),
+                ('15:00:00','18:00:00'),
+                ('19:00:00','21:00:00')
+            ]
+            session_start = None
+            session_end = None
+            for s,e in SESSIONS:
+                if time_part == s:
+                    session_start = f"{date_part} {s}"
+                    session_end = f"{date_part} {e}"
+                    break
+
+            if session_start and session_end:
+                cur.execute("SELECT COUNT(*) FROM appointment WHERE patientID = %s AND appointmentTime >= %s AND appointmentTime < %s", (patient_id, session_start, session_end))
+                dup_row = cur.fetchone()
+                dup_count = 0
+                if isinstance(dup_row, dict):
+                    dup_count = next(iter(dup_row.values()))
+                else:
+                    dup_count = dup_row[0] if dup_row else 0
+                if dup_count > 0:
+                    cur.close()
+                    return render_template('appointment.html', submitted=True, error='同一身分證已在此時段預約過', patient=patient_input, staff=staff_id, atime=atime)
+
+            # Reservation capacity check (prevent exceeding per-slot capacity)
+            CAPACITY = 60
+            cur.execute("SELECT COUNT(*) FROM appointment WHERE staffID = %s AND appointmentTime = %s", (staff_id_int, atime))
+            cnt_row = cur.fetchone()
+            # support dict or tuple result
+            cur_count = None
+            if isinstance(cnt_row, dict):
+                cur_count = next(iter(cnt_row.values()))
+            else:
+                cur_count = cnt_row[0] if cnt_row else 0
+
+            if cur_count >= CAPACITY:
+                cur.close()
+                return render_template('appointment.html', submitted=True, error=f'此時段已額滿（{cur_count}/{CAPACITY}）', patient=patient_input, staff=staff_id, atime=atime)
+
+            # Insert appointment
+            cur.execute("INSERT INTO appointment (patientID, staffID, appointmentTime, status) VALUES (%s,%s,%s,%s)",
+                        (patient_id, staff_id_int, atime, 'booked'))
+            mysql.connection.commit()
+            cur.close()
+            return render_template('appointment.html', submitted=True, patient=patient_id, staff=staff_id_int, atime=atime, success=True)
+        except Exception as e:
+            return render_template('appointment.html', submitted=True, error=str(e), patient=patient_input, staff=staff_id, atime=atime)
+
+    return render_template('appointment.html', submitted=False)
+
+
+@app.route('/api/appointments')
+def api_appointments():
+    # Expects start and end query params (YYYY-MM-DD)
+    start = request.args.get('start')
+    end = request.args.get('end')
+    try:
+        cur = mysql.connection.cursor()
+        if start and end:
+            cur.execute("SELECT appointmentID, patientID, staffID, appointmentTime, status FROM appointment WHERE appointmentTime >= %s AND appointmentTime < %s", (start, end))
+        else:
+            cur.execute("SELECT appointmentID, patientID, staffID, appointmentTime, status FROM appointment")
+        rows = cur.fetchall()
+        cur.close()
+
+        # Convert rows to list of dicts (handles dictcursor or tuple)
+        appts = []
+        for r in rows:
+            if isinstance(r, dict):
+                # ensure appointmentTime is a string
+                item = dict(r)
+                if 'appointmentTime' in item and item['appointmentTime'] is not None:
+                    item['appointmentTime'] = str(item['appointmentTime'])
+                appts.append(item)
+            else:
+                appts.append({
+                    'appointmentID': r[0], 'patientID': r[1], 'staffID': r[2], 'appointmentTime': str(r[3]), 'status': r[4]
+                })
+        return { 'appointments': appts }
+    except Exception as e:
+        return { 'error': str(e) }
+
+
+@app.route('/api/staff')
+def api_staff():
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute("SELECT staffID, name, role FROM staff")
+        rows = cur.fetchall()
+        cur.close()
+        staff = []
+        for r in rows:
+            if isinstance(r, dict):
+                staff.append(r)
+            else:
+                staff.append({'staffID': r[0], 'name': r[1], 'role': r[2]})
+        return {'staff': staff}
+    except Exception as e:
+        return {'error': str(e)}
+
+
+@app.route('/init_staff')
+def init_staff():
+    """Create two sample doctors if they don't exist. Safe to call multiple times."""
+    try:
+        cur = mysql.connection.cursor()
+        # check by name
+        names = ['Dr. Chen', 'Dr. Lin']
+        created = []
+        for n in names:
+            cur.execute("SELECT staffID FROM staff WHERE name = %s", (n,))
+            row = cur.fetchone()
+            if not row:
+                cur.execute("INSERT INTO staff (name, role) VALUES (%s,%s)", (n, 'Physician'))
+                mysql.connection.commit()
+                created.append(n)
+        cur.close()
+        return { 'created': created }
+    except Exception as e:
+        return { 'error': str(e) }
 
 @app.route("/debug/tables")
 def debug_tables():
@@ -260,8 +509,6 @@ def debug_tables():
 #     dbname = cur.fetchone()[0]
 #     cur.close()
 #     return {"ok": True, "db": dbname}
-
-
 
 
 

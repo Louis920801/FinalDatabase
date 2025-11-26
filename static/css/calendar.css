@@ -1,0 +1,62 @@
+/* calendar week-view styles (獨立檔案) */
+.calendar-grid {
+  display: block;
+  border: 1px solid #e2e8f0;
+  overflow: auto;
+  font-family: inherit;
+}
+
+/* header row */
+.grid-header {
+  display: grid;
+  grid-template-columns: 120px repeat(5, 1fr);
+  background: #f1f5f9;
+  border-bottom:1px solid #e2e8f0;
+}
+.grid-day-header {
+  padding: 8px;
+  text-align: center;
+  font-weight: 600;
+  border-left:1px solid #e2e8f0;
+}
+
+/* each time row */
+.grid-row {
+  display: grid;
+  grid-template-columns: 120px repeat(5, 1fr);
+  align-items: stretch;
+  border-bottom:1px solid #f8fafc;
+}
+.time-cell {
+  padding: 6px;
+  font-size: 13px;
+  border-right:1px solid #e6eef6;
+  background:#fff;
+}
+
+/* slot cells */
+.slot-cell {
+  height: 40px;
+  border-left:1px solid #f1f5f9;
+  border-right:0;
+  margin: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.slot-cell:hover { background:#f8fafc; }
+.slot-cell.booked {
+  background: #ffdede;
+  color:#7f1d1d;
+}
+.slot-cell.selected {
+  background: #c7f9d7;
+  border: 2px solid #16a34a;
+}
+
+/* responsive */
+@media (max-width:900px){
+  .grid-header, .grid-row { grid-template-columns: 80px repeat(5, minmax(70px,1fr)); }
+  .time-cell { font-size:12px; padding:4px; }
+  .slot-cell { height:32px; font-size:12px; }
+}

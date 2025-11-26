@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-tw">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/immersive-translate.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
+    <title>工作人員登入</title>
+  </head>
+  <body>
+    <main class="main-content">
+      <div class="container" style="min-height:60vh; display:flex; align-items:center; justify-content:center;">
+        <div class="card" style="max-width:420px; width:100%;">
+          <h2 style="margin-bottom:12px;">工作人員登入</h2>
+          {% if error %}
+            <div style="color:#9b1c1c;margin-bottom:8px;">{{ error }}</div>
+          {% endif %}
+          <form method="post">
+            <div style="margin-bottom:8px;">
+              <label class="label">使用者名稱</label>
+              <input name="username" class="input" type="text" placeholder="員工編號" />
+            </div>
+            <div style="margin-bottom:12px;">
+              <label class="label">密碼</label>
+              <input name="password" class="input" type="password" placeholder="密碼" />
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+              <a href="/" class="btn btn-ghost">取消</a>
+              <button class="btn btn-ghost" type="submit">登入</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
