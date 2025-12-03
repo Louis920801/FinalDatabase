@@ -63,16 +63,20 @@ def choose():
 
 @app.route("/pick_table", methods=["GET", "POST"])
 def pick_table():
-    # Require staff login before allowing access to the table editor
+    # --- [保留] 登入檢查 ---
     if not session.get('staff_logged_in'):
         return redirect(url_for('login'))
 
     DB_NAME = "hospitalDB"
+    
+    # 初始化變數，用於模板渲染
+    table_name = ""             # 當前選取的資料表名稱 (用於選單選中)
+    table_description = None    # 資料表結構描述 (用於右側描述表格)
 
     try:
         cur = mysql.connection.cursor()
 
-        # 目前連到哪個 DB（相容 tuple / dict）
+        # --- [保留] 目前連到哪個 DB 檢查與切換 ---
         cur.execute("SELECT DATABASE()")
         row = cur.fetchone()
         if isinstance(row, dict):
@@ -83,12 +87,12 @@ def pick_table():
         if not db:
             cur.execute(f"USE `{DB_NAME}`")
 
-        # 用 FROM 指定 DB，避免預設庫問題
+        # --- [保留] 獲取所有資料表名稱 ---
         cur.execute(f"SHOW TABLES FROM `{DB_NAME}`")
         rows = cur.fetchall()
         cur.close()
 
-        # rows 可能是 [("patient",), ...] 或 [{"Tables_in_hospitalDB":"patient"}, ...]
+        # --- [保留] 資料表名稱標準化與排序 ---
         tables = []
         for r in rows:
             if isinstance(r, dict):
@@ -102,7 +106,7 @@ def pick_table():
         tables.sort()
 
     except Exception as e:
-        # 把真正錯誤丟到 invalid.html
+        # --- [保留] 錯誤處理 ---
         code = None
         msg = repr(e)
         if getattr(e, "args", None):
@@ -113,47 +117,55 @@ def pick_table():
 
     # POST：Describe / Pick
     if request.method == "POST":
-        table_name = (request.form.get("table") or "").strip()
+        selected_table = (request.form.get("table") or "").strip()
+        
+        # 將選取的資料表名稱賦值給 template 變數，保持下拉選單選中狀態
+        table_name = selected_table 
 
-        if "describe" in request.form and table_name:
+        # --- [修改] 處理 DESCRIBE 按鈕邏輯 ---
+        if "describe" in request.form and selected_table:
             try:
                 cur = mysql.connection.cursor()
-                cur.execute(f"DESCRIBE `{DB_NAME}`.`{table_name}`")
+                # 執行 DESCRIBE 查詢
+                cur.execute(f"DESCRIBE `{DB_NAME}`.`{selected_table}`")
                 desc_rows = cur.fetchall()
                 cur.close()
-
-                # 規格化成 list[tuple] 給模板畫表
-                normalized = []
-                for r in desc_rows:
-                    if isinstance(r, dict):
-                        normalized.append((
-                            r.get("Field"), r.get("Type"), r.get("Null"),
-                            r.get("Key"), r.get("Default"), r.get("Extra")
-                        ))
+                
+                # 標準化資料格式：轉換成字典列表，方便模板存取 (Field, Type, Null, Key, Default, Extra)
+                if desc_rows:
+                    if isinstance(desc_rows[0], dict):
+                        # 如果是 DictCursor，直接使用
+                        table_description = desc_rows
                     else:
-                        normalized.append(tuple(r))
+                        # 如果是 TupleCursor，進行轉換
+                        keys = ["Field", "Type", "Null", "Key", "Default", "Extra"]
+                        table_description = [dict(zip(keys, row)) for row in desc_rows]
+                
+                # DESCRIBE 成功後，渲染模板並傳遞 table_description
                 return render_template(
                     "pick_table.html",
                     tables=tables,
-                    table_name=table_name,
-                    table=normalized
+                    table_name=table_name,             # 保留選中的 table_name
+                    table_description=table_description # 傳遞結構描述資料
                 )
             except Exception as e:
+                # --- [保留] DESCRIBE 錯誤處理 ---
                 return render_template("invalid.html", e=f"DESCRIBE 失敗：{repr(e)}")
 
-        if "pick" in request.form and table_name:
-            session["table_name"] = table_name   # 正確賦值
+        # --- [保留] 處理 PICK 按鈕邏輯 ---
+        if "pick" in request.form and selected_table:
+            session["table_name"] = selected_table 
             session.modified = True
             return redirect(url_for("edit"))
 
-    # GET 初始頁
+    # GET 初始頁 或 POST 但沒有動作
+    # --- [保留] GET 初始頁渲染邏輯 ---
     return render_template(
         "pick_table.html",
         tables=tables,
-        table_name="",
-        table=None
+        table_name=table_name, # POST 失敗時，這裡的 table_name 依然是選中的那個
+        table_description=table_description # 初始為 None
     )
-
 
 
 @app.route('/edit', methods=['POST', 'GET'])

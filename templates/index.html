@@ -66,6 +66,113 @@
     </div>
   </main>
 
+  <section class="py-16 bg-gray-50">
+    <div class="container mx-auto px-4">
+        <h2 class="text-4xl font-bold text-center mb-10 text-primary-content">
+            主要服務與專科
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            
+            <div class="service-card card bg-white shadow-xl hover:shadow-2xl transition duration-300">
+                <div class="card-body items-center text-center">
+                    <div class="text-5xl text-success mb-4">
+                        <i class="fas fa-stethoscope"></i> 
+                    </div>
+                    <h3 class="card-title text-2xl">家醫科</h3>
+                    <p class="text-gray-500">提供一般常見疾病診斷與長期健康管理，您的家庭醫師。</p>
+                </div>
+            </div>
+
+            <div class="service-card card bg-white shadow-xl hover:shadow-2xl transition duration-300">
+                <div class="card-body items-center text-center">
+                    <div class="text-5xl text-success mb-4">
+                        <i class="fas fa-file-medical"></i>
+                    </div>
+                    <h3 class="card-title text-2xl">學生健檢</h3>
+                    <p class="text-gray-500">配合校方需求，提供年度健康檢查與報告諮詢。</p>
+                </div>
+            </div>
+
+            <div class="service-card card bg-white shadow-xl hover:shadow-2xl transition duration-300">
+                <div class="card-body items-center text-center">
+                    <div class="text-5xl text-success mb-4">
+                        <i class="fas fa-syringe"></i>
+                    </div>
+                    <h3 class="card-title text-2xl">疫苗施打</h3>
+                    <p class="text-gray-500">提供流感、成人疫苗等接種服務，請隨時注意公告。</p>
+                </div>
+            </div>
+            
+            <div class="service-card card bg-white shadow-xl hover:shadow-2xl transition duration-300">
+                <div class="card-body items-center text-center">
+                    <div class="text-5xl text-success mb-4">
+                        <i class="fas fa-pills"></i>
+                    </div>
+                    <h3 class="card-title text-2xl">汽機車健檢</h3>
+                    <p class="text-gray-500">針對感冒、腸胃不適等常見症狀提供專業治療。</p>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+  </section>
+
+  <section class="py-16">
+    <div class="container mx-auto px-4">
+        <div class="flex flex-col lg:flex-row gap-12">
+            
+            <div class="w-full lg:w-3/5">
+                <h2 class="text-3xl font-bold mb-6 border-b-2 border-success pb-2">
+                    今日門診資訊
+                </h2>
+                <div class="card bg-base-200 shadow-lg p-6 mb-6">
+                    <p class="text-xl font-semibold mb-2 text-success">
+                        <i class="fas fa-clock mr-2"></i> 目前狀態：營業中
+                    </p>
+                    <p class="text-lg">
+                        目前看診醫師： 蔡霆鋒 醫師 (家醫科)
+                    </p>
+                    <p class="text-sm text-gray-500 mt-2">
+                        掛號截止時間:17:00
+                    </p>
+                </div>
+                
+                <div class="text-center mt-6">
+                    <a href="{{ url_for('appointment') }}" class="btn btn-success btn-lg">
+                        查看完整門診班表 <i class="fas fa-arrow-right ml-2"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="w-full lg:w-2/5">
+                <h2 class="text-3xl font-bold mb-6 border-b-2 border-primary pb-2">
+                    診所最新公告
+                </h2>
+                
+                <ul class="space-y-4">
+                    <li class="p-4 bg-yellow-100 border-l-4 border-yellow-500 rounded-lg">
+                        <span class="badge badge-error mr-2">緊急</span> 
+                        <a href="#" class="font-semibold text-gray-800 hover:text-primary">11/30 (五) 設備維護，下午 13:00 起休診。</a>
+                        <p class="text-xs text-gray-500 mt-1">發布日期:2025-11-25</p>
+                    </li>
+                    <li class="p-4 bg-blue-100 border-l-4 border-blue-500 rounded-lg">
+                        <span class="badge badge-info mr-2">活動</span>
+                        <a href="#" class="font-semibold text-gray-800 hover:text-primary">流感疫苗將於 12/1 開打，請提前預約。</a>
+                        <p class="text-xs text-gray-500 mt-1">發布日期:2025-11-20</p>
+                    </li>
+                    <li class="p-4 bg-gray-100 border-l-4 border-gray-300 rounded-lg">
+                        <span class="badge badge-ghost mr-2">一般</span>
+                        <a href="#" class="font-semibold text-gray-800 hover:text-primary">即日起，網路預約服務開放至兩週內。</a>
+                        <p class="text-xs text-gray-500 mt-1">發布日期:2025-11-15</p>
+                    </li>
+                </ul>
+            </div>
+            
+        </div>
+    </div>
+  </section>
+
   <!-- footer -->
 
   <footer class="footer p-10 bg-base-200 text-base-content">

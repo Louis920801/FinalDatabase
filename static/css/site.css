@@ -184,7 +184,7 @@ table.table th{background:transparent;color:var(--muted);font-weight:600}
 /* Hero CTA: vertical stack of buttons under title on wide screens */
 .hero-cta.vertical{
   display:flex;
-  flex-direction:column;
+  flex-direction:row;
   gap:50px; /* increased spacing between buttons */
   align-items:flex-start; /* change to center to center buttons */
 }
@@ -237,3 +237,18 @@ table.table th{background:transparent;color:var(--muted);font-weight:600}
 /* accessibility focus */
 :focus{outline:3px solid rgba(46,163,79,0.18);outline-offset:2px}
 
+/* Force DaisyUI navbar sides to separate */
+.navbar-start {
+  margin-right: auto !important;
+}
+
+.navbar-end {
+  margin-left: auto !important;
+  display: flex !important;
+  gap: 20px !important;
+}
+
+.navbar {
+  padding-left: 56px !important;
+  padding-right: 56px !important;
+}

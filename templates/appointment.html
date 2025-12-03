@@ -1,47 +1,35 @@
 <!doctype html>
 <html lang="zh-tw" data-theme="emerald">
   <head>
-  <meta charset="utf-8">
-  <title>週視圖預約</title>
-  <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/immersive-translate.css') }}">
-  <!-- 新增：本地 calendar 樣式 -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css') }}">
-  <!-- project-wide styles -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
+    <meta charset="utf-8">
+    <title>週視圖預約</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/immersive-translate.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/calendar.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/site.css') }}">
   </head>
-  <body>
-    <!-- navbar (consistent across site) -->
-    <div class="navbar mb-2 fixed w-full z-50 top-0 border-b bg-base-100 text-base-content ">
-      <div class="px-2 mx-2 navbar-start">
-          <span class="text-lg font-bold">
-            <a href="/">國立台北科技大學附屬診所</a>
-          </span>
+
+  <body style="height: 100%; width: 100%; overflow-x: hidden;">
+
+    <!-- ====================== 修正版 Navbar ====================== -->
+    <div class="navbar mb-2 fixed w-full z-50 top-0 border-b bg-base-100 text-base-content">
+      <!-- 左側 -->
+      <div class="navbar-start px-4">
+        <a href="/" class="text-lg font-bold">
+          國立台北科技大學附屬診所
+        </a>
       </div>
-      <div class="hidden px-2 mx-2 navbar-center lg:flex">
-        <div class="flex items-stretch">
-          <ul class="menu menu-horizontal">
-            <li>
-              <a href="{{ url_for('pick_table') }}" class="ghost-btn rounded-lg">返回表選擇</a>
-            </li>
-          </ul>
-        </div>
+
+      <!-- 右側 -->
+      <div class="navbar-end px-4 flex gap-6">
+        <a href="{{ url_for('index') }}" class="hover:underline">返回主頁</a>
+        <a href="{{ url_for('logout') }}" class="hover:underline">登出</a>
       </div>
-      <div class="navbar-end">
-        <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm">登出</a>
-        <div class="dropdown dropdown-end">
-          <div tabindex="0" class="m-1 btn btn-square btn-ghost lg:hidden">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-6 h-6 stroke-current">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-            </svg>
-          </div>
-          <ul tabindex="0" class="p-2 shadow menu dropdown-content bg-base-100 rounded-box w-52">
-            <li><a href="{{ url_for('pick_table') }}">返回表選擇</a></li>
-            <li><a href="{{ url_for('logout') }}">登出</a></li>
-          </ul>
-        </div>
-      </div>
+
     </div>
+
+
+    <!-- ======================================================== -->
 
     <div class="container mx-auto p-6" style="padding-top:72px;">
       <h1 class="text-3xl font-bold mb-4">病患預約</h1>
@@ -55,7 +43,6 @@
             <p>預約時間：{{ atime }}</p>
             <a class="btn mt-3" href="/">回首頁</a>
           {% else %}
-            <!-- <h2 class="text-lg font-semibold">已送出預約</h2> -->
             {% if error %}
               <p class="text-red-600">錯誤：{{ error }}</p>
             {% endif %}
@@ -65,6 +52,7 @@
             <a class="btn mt-3" href="/">回首頁</a>
           {% endif %}
         </div>
+
       {% else %}
         <div>
           <div class="flex items-center gap-2 mb-4">
@@ -74,7 +62,6 @@
           </div>
 
           <div id="calendarContainer" class="overflow-x-auto">
-            <!-- calendar table rendered by JS -->
           </div>
 
           <form id="apptForm" method="post">
@@ -82,18 +69,23 @@
             <input type="hidden" name="patientName" id="inputPatientName" />
             <input type="hidden" name="staffID" id="inputStaff" />
             <input type="hidden" name="appointmentTime" id="inputTime" />
+
             <div class="mt-4">
               <label class="label"><span class="label-text">輸入身份證字號</span></label>
-              <input id="patientText" class="input input-bordered w-full" placeholder="e.g F123456789" maxlength="10" />
+              <input id="patientText" class="input input-bordered w-full"
+                     placeholder="e.g F123456789" maxlength="10" />
               <p class="text-muted mt-2">1 個大寫英文字母 + 9 個數字（例如 F123456789）</p>
             </div>
+
             <div class="mt-4">
               <label class="label"><span class="label-text">病患姓名</span></label>
-              <input id="patientNameText" class="input input-bordered w-full" placeholder="例如：張博欽" />
+              <input id="patientNameText" class="input input-bordered w-full"
+                     placeholder="例如：張博欽" />
             </div>
+
             <div class="mt-4">
               <button type="button" id="submitBtn" class="btn btn-primary mt-2">確認並預約選取的時段</button>
-              <a href="{{ url_for('pick_table') }}" class="btn btn-ghost mt-2">取消</a>
+              <a href="{{ url_for('index') }}" class="btn btn-ghost mt-2">取消</a>
             </div>
           </form>
         </div>
@@ -107,21 +99,23 @@
           {key:'evening', label:'晚上診 (19:00-21:00)', start:'19:00:00', end:'21:00:00'}
         ];
 
-        // === 可調整配置 ===
-        const MAX_DOCTORS_PER_SLOT = 3; // 每個時段最多顯示 2 個醫生
-        const DOCTOR_SPACING_CLASS = 'gap-6'; // 醫生按鈕之間的間距（使用 Tailwind gap-* 類）
-        const CAPACITY = 60; // 每個時段容量上限
+        const MAX_DOCTORS_PER_SLOT = 3; 
+        const DOCTOR_SPACING_CLASS = 'gap-6';
+        const CAPACITY = 60;
 
         let weekStart = getMonday(new Date());
 
-        document.getElementById('prevWeek').addEventListener('click', () => { weekStart.setDate(weekStart.getDate() - 7); render(); });
-        document.getElementById('nextWeek').addEventListener('click', () => { weekStart.setDate(weekStart.getDate() + 7); render(); });
+        document.getElementById('prevWeek').addEventListener('click', () => {
+          weekStart.setDate(weekStart.getDate() - 7); render();
+        });
+        document.getElementById('nextWeek').addEventListener('click', () => {
+          weekStart.setDate(weekStart.getDate() + 7); render();
+        });
 
-        // enforce uppercase and national ID format: 1 uppercase letter + 9 digits
         const idRegex = /^[A-Z][0-9]{9}$/;
         const patientText = document.getElementById('patientText');
-        // auto-uppercase as user types
-        patientText.addEventListener('input', (e) => {
+
+        patientText.addEventListener('input', () => {
           const pos = patientText.selectionStart;
           patientText.value = patientText.value.toUpperCase();
           try { patientText.setSelectionRange(pos, pos); } catch (err) {}
@@ -130,127 +124,186 @@
         document.getElementById('submitBtn').addEventListener('click', () => {
           let patientVal = document.getElementById('patientText').value.trim().toUpperCase();
           let patientNameVal = document.getElementById('patientNameText').value.trim();
-          if (!patientVal) { alert('請輸入病患身份證字號'); return; }
 
-          // validate national ID pattern (one uppercase letter + 9 digits)
+          if (!patientVal) { alert('請輸入病患身份證字號'); return; }
           if (!idRegex.test(patientVal)) {
             alert('病患識別格式錯誤：請輸入 1 個大寫英文字母接 9 個數字（例如 F123456789）');
             return;
           }
-
           if (!patientNameVal) { alert('請輸入病患姓名'); return; }
 
           document.getElementById('inputPatient').value = patientVal;
           document.getElementById('inputPatientName').value = patientNameVal;
-          if (!document.getElementById('inputStaff').value || !document.getElementById('inputTime').value) { alert('請先點選欲預約時段'); return; }
+
+          if (!document.getElementById('inputStaff').value || !document.getElementById('inputTime').value) {
+            alert('請先點選欲預約時段');
+            return;
+          }
+
           document.getElementById('apptForm').submit();
         });
 
-        function getMonday(d){ d = new Date(d); const day = d.getDay(); const diff = d.getDate() - day + (day==0? -6:1); return new Date(d.setDate(diff)); }
+        function getMonday(d){
+          d = new Date(d);
+          const day = d.getDay();
+          const diff = d.getDate() - day + (day==0? -6:1);
+          return new Date(d.setDate(diff));
+        }
 
         async function render(){
           const weekLabel = document.getElementById('weekLabel');
           const startISO = formatDate(weekStart);
           const end = new Date(weekStart); end.setDate(end.getDate() + 7);
-          const endISO = formatDate(end);
+
           weekLabel.textContent = `${startISO} ~ ${formatDate(new Date(end.getTime()-1))}`;
 
-          // fetch staff (fallback to provided two)
           let staffList = [];
           try{
             const r = await fetch('/api/staff');
             const j = await r.json();
             staffList = j.staff || [];
           }catch(e){ staffList = []; }
-          if(!staffList || staffList.length===0){ staffList = [{staffID:1,name:'蔡霆鋒'},{staffID:2,name:'范祥偉'},{staffID:3,name:'張博欽'}]; }
 
-          // fetch appointments
+          if(!staffList || staffList.length===0){
+            staffList = [
+              {staffID:1,name:'蔡霆鋒'},
+              {staffID:2,name:'范祥偉'},
+              {staffID:3,name:'張博欽'}
+            ];
+          }
+
           let appts = [];
           try{
-            const r = await fetch(`/api/appointments?start=${startISO}&end=${endISO}`);
+            const r = await fetch(`/api/appointments?start=${startISO}&end=${formatDate(end)}`);
             const j = await r.json();
             appts = j.appointments || [];
           }catch(e){ appts = []; }
 
-          // build grid: columns Mon-Fri, rows for sessions
           const container = document.getElementById('calendarContainer');
-          const table = document.createElement('table'); table.className='table w-full';
+          const table = document.createElement('table');
+          table.className='table w-full';
+
           const thead = document.createElement('thead');
           const headRow = document.createElement('tr');
-          const thTime = document.createElement('th'); thTime.textContent='時間 / 日期'; headRow.appendChild(thTime);
-          for(let d=0; d<5; d++){ const th=document.createElement('th'); const day=new Date(weekStart); day.setDate(weekStart.getDate()+d); th.textContent=day.toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'}); headRow.appendChild(th); }
-          thead.appendChild(headRow); table.appendChild(thead);
+
+          const thTime = document.createElement('th');
+          thTime.textContent='時間 / 日期';
+          headRow.appendChild(thTime);
+
+          for(let d=0; d<5; d++){
+            const th = document.createElement('th');
+            const day=new Date(weekStart);
+            day.setDate(weekStart.getDate()+d);
+            th.textContent = day.toLocaleDateString(undefined,
+              {weekday:'short', month:'short', day:'numeric'});
+            headRow.appendChild(th);
+          }
+
+          thead.appendChild(headRow);
+          table.appendChild(thead);
 
           const tbody = document.createElement('tbody');
+
           for(const session of SESSIONS){
             const row = document.createElement('tr');
-            const sessionCell = document.createElement('td'); sessionCell.textContent = session.label; row.appendChild(sessionCell);
+            const sessionCell = document.createElement('td');
+            sessionCell.textContent = session.label;
+            row.appendChild(sessionCell);
+
             for(let d=0; d<5; d++){
-              const day = new Date(weekStart); day.setDate(weekStart.getDate()+d);
+              const day = new Date(weekStart);
+              day.setDate(weekStart.getDate()+d);
               const dateISO = formatDate(day);
+
               const cell = document.createElement('td');
-              // 只顯示前 MAX_DOCTORS_PER_SLOT 個醫生
               const displayedStaff = staffList.slice(0, MAX_DOCTORS_PER_SLOT);
-              const cellInner = document.createElement('div'); cellInner.className = `flex flex-wrap ${DOCTOR_SPACING_CLASS}`;
-              // show each staff as a small button inside the cell
+
+              const cellInner = document.createElement('div');
+              cellInner.className = `flex flex-wrap ${DOCTOR_SPACING_CLASS}`;
+
               for(const s of displayedStaff){
-                const btn = document.createElement('button'); 
+                const btn = document.createElement('button');
                 btn.className='btn btn-xs m-1 relative group';
                 btn.setAttribute('data-staff-id', s.staffID);
-                // 嘗試預載該 staff 的頭像（jpg 或 png）；載入成功才把 --avatar-url 與 has-avatar class 設定
+
                 (async function(btn, id){
-                  const formats = ['jpg', 'png'];
+                  const formats=['jpg','png'];
                   for(const fmt of formats){
-                    const path = `/static/images/staff/${id}.${fmt}`;
+                    const path=`/static/images/staff/${id}.${fmt}`;
                     try{
-                      const r = await fetch(path, {method:'HEAD'});
+                      const r=await fetch(path,{method:'HEAD'});
                       if(r.ok){
                         btn.classList.add('has-avatar');
                         btn.style.setProperty('--avatar-url', `url('${path}')`);
-                        console.log(`[Avatar] Loaded ${path}`);
                         return;
                       }
-                    }catch(e){
-                      console.log(`[Avatar] Failed to fetch ${path}`);
-                    }
+                    }catch(e){}
                   }
-                  console.log(`[Avatar] No image found for staffID ${id}`);
                 })(btn, s.staffID);
-                // count appointments for this staff in this date/session
-                const count = appts.filter(a=> String(a.staffID)===String(s.staffID) && a.appointmentTime.startsWith(dateISO) && inSession(a.appointmentTime, session)).length;
+
+                const count = appts.filter(a =>
+                  String(a.staffID)===String(s.staffID) &&
+                  a.appointmentTime.startsWith(dateISO) &&
+                  inSession(a.appointmentTime, session)
+                ).length;
+
                 btn.textContent = `${s.name}`;
-                // show count as badge/title
-                btn.title = `${count}/${CAPACITY} 已預約`;
-                if(count >= CAPACITY){ btn.classList.add('btn-disabled'); btn.disabled=true; }
+                btn.title=`${count}/${CAPACITY} 已預約`;
+
+                if(count >= CAPACITY){
+                  btn.classList.add('btn-disabled');
+                  btn.disabled=true;
+                }
+
                 btn.addEventListener('click', ()=>{
-                  if(count >= CAPACITY) { alert('此時段已額滿'); return; }
+                  if(count >= CAPACITY){
+                    alert('此時段已額滿');
+                    return;
+                  }
+
                   document.getElementById('inputStaff').value = s.staffID;
                   document.getElementById('inputTime').value = `${dateISO} ${session.start}`;
-                  document.querySelectorAll('.btn-xs.selected').forEach(n=>n.classList.remove('selected'));
+
+                  document.querySelectorAll('.btn-xs.selected')
+                    .forEach(n=>n.classList.remove('selected'));
+
                   btn.classList.add('selected');
                   window.scrollTo(0,0);
                 });
+
                 cellInner.appendChild(btn);
               }
+
               cell.appendChild(cellInner);
               row.appendChild(cell);
             }
+
             tbody.appendChild(row);
           }
+
           table.appendChild(tbody);
-          container.innerHTML=''; container.appendChild(table);
+          container.innerHTML='';
+          container.appendChild(table);
         }
 
         function inSession(dtString, session){
-          try{ const parts = dtString.split(' '); if(parts.length<2) return false; const time = parts[1]; return time >= session.start && time < session.end; }catch(e){return false;}
+          try{
+            const parts=dtString.split(' ');
+            if(parts.length<2) return false;
+            const time=parts[1];
+            return time>=session.start && time<session.end;
+          }catch(e){ return false; }
         }
 
-        function formatDate(d){ const y=d.getFullYear(); const m=('0'+(d.getMonth()+1)).slice(-2); const dd=('0'+d.getDate()).slice(-2); return `${y}-${m}-${dd}`; }
-        function formatDateTime(d){ const y=d.getFullYear(); const m=('0'+(d.getMonth()+1)).slice(-2); const dd=('0'+d.getDate()).slice(-2); const hh=('0'+d.getHours()).slice(-2); const mm=('0'+d.getMinutes()).slice(-2); return `${y}-${m}-${dd} ${hh}:${mm}:00`; }
+        function formatDate(d){
+          const y=d.getFullYear();
+          const m=('0'+(d.getMonth()+1)).slice(-2);
+          const dd=('0'+d.getDate()).slice(-2);
+          return `${y}-${m}-${dd}`;
+        }
 
         render();
       </script>
-
     </div>
   </body>
 </html>
