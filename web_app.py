@@ -1,24 +1,29 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from dotenv import load_dotenv
+load_dotenv()
+
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_mysqldb import MySQL
 from sql_helper import *
 from html_helper import *
 from werkzeug.security import check_password_hash
 
+from functools import wraps
+from flask import abort
+
+DEMO_KEY = "406"  # 你自己改成不容易猜的
+
+def require_demo_key(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        key = request.args.get("key", "")
+        if key != DEMO_KEY:
+            return abort(403)
+        return f(*args, **kwargs)
+    return wrapper
+
 app = Flask(__name__)
-app.debug = True
-
 app.secret_key = 'mango'
-
-# print("== USING SQL Server connection ==")
-
-# Enter your database connection details below
-# app.config['MYSQL_HOST'] = 'localhost'
-# app.config['MYSQL_USER'] = 'tempuser'
-# app.config['MYSQL_PASSWORD'] = '123+Temppass'
-# app.config['MYSQL_DB'] = 'hospitalDB'
-# app.config['MYSQL_PORT'] = 3306
-# app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
-
+app.debug = True
 
 app.config['MYSQL_HOST'] = '127.0.0.1'
 app.config['MYSQL_PORT'] = 3306
@@ -27,56 +32,71 @@ app.config['MYSQL_PASSWORD'] = '123+Temppass'
 app.config['MYSQL_DB'] = 'hospitalDB'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
-# Intialize MySQL
 mysql = MySQL(app)
 print("== USING MySQL DB:", app.config['MYSQL_DB'], "on port", app.config['MYSQL_PORT'])
 
-@app.route('/')
+@app.route("/", methods=["GET"])
 def index():
     return render_template('index.html')
+
+print(">>> THIS IS web_app.py <<<")
 
 @app.route('/', methods=['POST'])
 def choose():
     if request.form.get("start"):
-        # redirect staff login attempts to the login page first
         return redirect(url_for('login'))
     else:
         return render_template('index.html')
 
-@app.route('/pick_table', methods=['POST', 'GET'])
-# def pick_table():
-#     table_name = ''
-#     if session.get('table_name'):
-#         session.pop('table_name', None)
-#     options = nested_list_to_html_select(show_tables(mysql))
-#     if request.method == 'POST' and 'table' in request.form:
-#         if 'describe' in request.form:
-#             table_name = request.form['table']
-#             table = nested_list_to_html_table(desc_table(mysql, table_name))
-#             return render_template('pick_table.html', table=table, table_name=table_name, options=options)
-#         elif 'pick' in request.form:
-#             session['table_name'] = request.form['table']
-#             return redirect(url_for('edit'))
 
-#     table = nested_list_to_html_table(show_tables(mysql)) # Warring 
-#     return render_template('pick_table.html', table=table, table_name=table_name, options=options)
+# -----------------------------
+# SQL 組字串用的小工具（修 None/NULL 問題）
+# -----------------------------
+
+def _escape_sql_string(s: str) -> str:
+    # 最基本 escape：避免單引號炸掉 SQL
+    # 你目前是用字串拼 SQL，所以至少要做這個
+    return s.replace("\\", "\\\\").replace("'", "\\'")
+
+def sql_value_literal(raw_val: str) -> str:
+    """
+    回傳可直接塞進 INSERT/UPDATE 的 value literal：
+    - 空/None -> NULL（不加引號）
+    - 純數字 -> 123
+    - 其他 -> 'text'（會 escape）
+    """
+    val = (raw_val or "").strip()
+
+    if val == "" or val.lower() == "none":
+        return "NULL"
+    if val.isnumeric():
+        return val
+    return "'" + _escape_sql_string(val) + "'"
+
+def sql_where_predicate(col: str, raw_val: str) -> str:
+    """
+    回傳一個 WHERE 條件：
+    - 空/None -> `col IS NULL`
+    - 其他 -> `col = <literal>`
+    """
+    lit = sql_value_literal(raw_val)
+    if lit == "NULL":
+        return f"{col} IS NULL"
+    return f"{col} = {lit}"
+
 
 @app.route("/pick_table", methods=["GET", "POST"])
 def pick_table():
-    # --- [保留] 登入檢查 ---
     if not session.get('staff_logged_in'):
         return redirect(url_for('login'))
 
     DB_NAME = "hospitalDB"
-    
-    # 初始化變數，用於模板渲染
-    table_name = ""             # 當前選取的資料表名稱 (用於選單選中)
-    table_description = None    # 資料表結構描述 (用於右側描述表格)
+    table_name = ""
+    table_description = None
 
     try:
         cur = mysql.connection.cursor()
 
-        # --- [保留] 目前連到哪個 DB 檢查與切換 ---
         cur.execute("SELECT DATABASE()")
         row = cur.fetchone()
         if isinstance(row, dict):
@@ -87,12 +107,10 @@ def pick_table():
         if not db:
             cur.execute(f"USE `{DB_NAME}`")
 
-        # --- [保留] 獲取所有資料表名稱 ---
         cur.execute(f"SHOW TABLES FROM `{DB_NAME}`")
         rows = cur.fetchall()
         cur.close()
 
-        # --- [保留] 資料表名稱標準化與排序 ---
         tables = []
         for r in rows:
             if isinstance(r, dict):
@@ -106,7 +124,6 @@ def pick_table():
         tables.sort()
 
     except Exception as e:
-        # --- [保留] 錯誤處理 ---
         code = None
         msg = repr(e)
         if getattr(e, "args", None):
@@ -115,57 +132,81 @@ def pick_table():
                 msg = e.args[1]
         return render_template("invalid.html", e=f"MySQL error code={code}, message={msg}")
 
-    # POST：Describe / Pick
     if request.method == "POST":
         selected_table = (request.form.get("table") or "").strip()
-        
-        # 將選取的資料表名稱賦值給 template 變數，保持下拉選單選中狀態
-        table_name = selected_table 
+        table_name = selected_table
 
-        # --- [修改] 處理 DESCRIBE 按鈕邏輯 ---
         if "describe" in request.form and selected_table:
             try:
                 cur = mysql.connection.cursor()
-                # 執行 DESCRIBE 查詢
                 cur.execute(f"DESCRIBE `{DB_NAME}`.`{selected_table}`")
                 desc_rows = cur.fetchall()
                 cur.close()
-                
-                # 標準化資料格式：轉換成字典列表，方便模板存取 (Field, Type, Null, Key, Default, Extra)
+
                 if desc_rows:
                     if isinstance(desc_rows[0], dict):
-                        # 如果是 DictCursor，直接使用
                         table_description = desc_rows
                     else:
-                        # 如果是 TupleCursor，進行轉換
                         keys = ["Field", "Type", "Null", "Key", "Default", "Extra"]
                         table_description = [dict(zip(keys, row)) for row in desc_rows]
-                
-                # DESCRIBE 成功後，渲染模板並傳遞 table_description
+
                 return render_template(
                     "pick_table.html",
                     tables=tables,
-                    table_name=table_name,             # 保留選中的 table_name
-                    table_description=table_description # 傳遞結構描述資料
+                    table_name=table_name,
+                    table_description=table_description
                 )
             except Exception as e:
-                # --- [保留] DESCRIBE 錯誤處理 ---
                 return render_template("invalid.html", e=f"DESCRIBE 失敗：{repr(e)}")
 
-        # --- [保留] 處理 PICK 按鈕邏輯 ---
         if "pick" in request.form and selected_table:
-            session["table_name"] = selected_table 
+            session["table_name"] = selected_table
             session.modified = True
             return redirect(url_for("edit"))
 
-    # GET 初始頁 或 POST 但沒有動作
-    # --- [保留] GET 初始頁渲染邏輯 ---
     return render_template(
         "pick_table.html",
         tables=tables,
-        table_name=table_name, # POST 失敗時，這裡的 table_name 依然是選中的那個
-        table_description=table_description # 初始為 None
+        table_name=table_name,
+        table_description=table_description
     )
+
+
+@app.route("/sql_console", methods=["POST"])
+def sql_console():
+    if not session.get('staff_logged_in'):
+        return jsonify({"error": "尚未登入，請先登入後再使用 SQL 終端機"})
+
+    data = request.get_json() or {}
+    query = (data.get("query") or "").strip()
+
+    if not query:
+        return jsonify({"error": "Empty query"})
+
+    try:
+        cur = mysql.connection.cursor()
+        cur.execute(query)
+
+        if cur.description:
+            rows = cur.fetchall()
+            if rows and isinstance(rows[0], dict):
+                columns = list(rows[0].keys())
+                row_list = [[r.get(col) for col in columns] for r in rows]
+            else:
+                columns = [col[0] for col in cur.description]
+                row_list = [list(r) for r in rows]
+
+            cur.close()
+            return jsonify({"columns": columns, "rows": row_list})
+
+        else:
+            mysql.connection.commit()
+            affected = cur.rowcount
+            cur.close()
+            return jsonify({"columns": ["info"], "rows": [[f"{affected} rows affected"]]})
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 
 @app.route('/edit', methods=['POST', 'GET'])
@@ -173,80 +214,87 @@ def edit():
     table_name = session.get('table_name')
     if not table_name:
         return redirect(url_for('pick_table'))
-    
+
     operation = None
     form_html = ''
+
     if request.method == 'POST' and 'insert_form' in request.form:
         operation = 'insert'
         table = nested_list_to_html_table(select_with_headers(mysql, table_name), buttons=True)
         form_html = get_insert_form(select_with_headers(mysql, table_name)[0])
         return render_template('edit.html', table=table, table_name=table_name, operation=operation, form_html=form_html)
+
     elif request.method == 'POST' and 'insert_execute' in request.form:
         columns = select_with_headers(mysql, table_name)[0]
-        values = []
-        for col in columns:
-            val = request.form[col]
-            if val.isnumeric():
-                values.append(val)
-            else:
-                values.append("\'" + val + "\'")
+
+        # ✅ 修正：空值/None -> NULL，文字加引號，數字不加
+        values = [sql_value_literal(request.form.get(col)) for col in columns]
+
         try:
             tables = insert_to_table(mysql, table_name, columns, values)
         except Exception as e:
             return render_template('invalid.html', e=str(e))
+
         tables = [nested_list_to_html_table(t) for t in tables]
         return render_template('insert_results.html', tables=tables, table_name=table_name)
+
     elif request.method == 'POST' and 'delete_button' in request.form:
-        values = request.form['delete_button'].split(',')
-        values = [val if val.isnumeric() else "\'" + val + "\'" for val in values]
+        # delete_button 內是一整列的值，用逗號拆
+        row_vals = request.form['delete_button'].split(',')
         columns = select_with_headers(mysql, table_name)[0]
-        where = []
-        for col, val in zip(columns, values):
-            where.append(col + " = " + val)
-        where = " AND ".join(where)
+
+        # ✅ 修正：遇到 None/空值 -> 用 IS NULL
+        where_list = []
+        for col, raw in zip(columns, row_vals):
+            where_list.append(sql_where_predicate(col, raw))
+        where = " AND ".join(where_list)
+
         try:
             tables = delete_from_table(mysql, table_name, where)
         except Exception as e:
             return render_template('invalid.html', e=str(e))
+
         tables = [nested_list_to_html_table(t) for t in tables]
         return render_template('delete_results.html', tables=tables, table_name=table_name)
+
     elif request.method == 'POST' and 'update_button' in request.form:
         operation = 'update'
         table = nested_list_to_html_table(select_with_headers(mysql, table_name), buttons=True)
-        values = request.form['update_button'].split(',')
-        form_html = get_update_form(select_with_headers(mysql, table_name)[0], values)
-        values = [val if val.isnumeric() else "\'" + val + "\'" for val in values]
+
+        row_vals = request.form['update_button'].split(',')
+        form_html = get_update_form(select_with_headers(mysql, table_name)[0], row_vals)
+
         columns = select_with_headers(mysql, table_name)[0]
-        where = []
-        for col, val in zip(columns, values):
-            where.append(col + " = " + val)
-        where = " AND ".join(where)
+
+        # ✅ 修正：update 的 WHERE 也要支援 NULL（IS NULL）
+        where_list = []
+        for col, raw in zip(columns, row_vals):
+            where_list.append(sql_where_predicate(col, raw))
+        where = " AND ".join(where_list)
+
         session['update_where'] = where
         return render_template('edit.html', table=table, table_name=table_name, operation=operation, form_html=form_html)
+
     elif request.method == 'POST' and 'update_execute' in request.form:
         columns = select_with_headers(mysql, table_name)[0]
-        values = []
-        for col in columns:
-            val = request.form[col]
-            if val.isnumeric():
-                values.append(val)
-            else:
-                values.append("\'" + val + "\'")
-        
+
+        # ✅ 修正：SET 的值也要支援 NULL
+        values = [sql_value_literal(request.form.get(col)) for col in columns]
+
         set_statement = []
-        for col, val in zip(columns, values):
-            set_statement.append(col + " = " + val)
+        for col, lit in zip(columns, values):
+            set_statement.append(f"{col} = {lit}")
         set_statement = ", ".join(set_statement)
 
         try:
-            tables = update_table(mysql, table_name, set_statement, session['update_where'])
+            tables = update_table(mysql, table_name, set_statement, session.get('update_where', ''))
         except Exception as e:
             return render_template('invalid.html', e=str(e))
+
         tables = [nested_list_to_html_table(t) for t in tables]
         if session.get('update_where'):
             session.pop('update_where', None)
         return render_template('update_results.html', tables=tables, table_name=table_name)
-
 
     table = nested_list_to_html_table(select_with_headers(mysql, table_name), buttons=True)
     return render_template('edit.html', table=table, table_name=table_name, operation=operation, form_html=form_html)
@@ -254,8 +302,6 @@ def edit():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # Secure admin login: verify username/password against admin table using
-    # parameterized queries and password hashing to prevent SQL injection.
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
         password = (request.form.get('password') or '').strip()
@@ -264,7 +310,6 @@ def login():
 
         try:
             cur = mysql.connection.cursor()
-            # parameterized query prevents SQL injection
             cur.execute("SELECT password_hash FROM admin WHERE username = %s", (username,))
             row = cur.fetchone()
             cur.close()
@@ -272,18 +317,13 @@ def login():
             if not row:
                 return render_template('login.html', error='使用者不存在')
 
-            # row may be a dict (DictCursor) or tuple
-            pwd_hash = None
-            if isinstance(row, dict):
-                pwd_hash = row.get('password_hash')
-            else:
-                pwd_hash = row[0]
+            pwd_hash = row.get('password_hash') if isinstance(row, dict) else row[0]
 
             if pwd_hash and check_password_hash(pwd_hash, password):
                 session['staff_logged_in'] = True
                 session['staff_user'] = username
                 session.permanent = True
-                app.permanent_session_lifetime = 3600  # 1小時（3600秒）= 可自行調整
+                app.permanent_session_lifetime = 3600
                 return redirect(url_for('pick_table'))
             else:
                 return render_template('login.html', error='帳號或密碼錯誤')
@@ -293,23 +333,25 @@ def login():
 
     return render_template('login.html')
 
+
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('login'))
 
+
 @app.route("/ping")
 def ping():
     cur = mysql.connection.cursor()
     cur.execute("SELECT DATABASE();")
-    dbname = cur.fetchone()[0]
+    row = cur.fetchone()
+    dbname = row.get(next(iter(row.keys()))) if isinstance(row, dict) else row[0]
     cur.close()
     return {"ok": True, "db": dbname}
 
 
 @app.route('/appointment', methods=['GET', 'POST'])
 def appointment():
-    # Appointment page: on POST create appointment (create patient if name given)
     if request.method == 'POST':
         patient_input = (request.form.get('patientID') or '').strip()
         patient_name = (request.form.get('patientName') or '').strip()
@@ -319,11 +361,8 @@ def appointment():
         try:
             cur = mysql.connection.cursor()
 
-            # Resolve patient: patient_input is expected to be national ID (e.g. F123456789)
-            # Ensure patient table has a national_id column (create if missing)
             patient_id = None
             nid = patient_input
-            # basic server-side validation for national id format
             import re
             nid_re = re.compile(r'^[A-Z][0-9]{9}$')
             if not nid or not nid_re.match(nid):
@@ -334,7 +373,6 @@ def appointment():
                 cur.execute("SELECT patientID FROM patient WHERE national_id = %s", (nid,))
                 row = cur.fetchone()
             except Exception as e:
-                # If the column doesn't exist, add it (non-unique to avoid ALTER failures)
                 msg = str(e)
                 if 'Unknown column' in msg or '1054' in msg:
                     try:
@@ -342,7 +380,6 @@ def appointment():
                         mysql.connection.commit()
                     except Exception:
                         pass
-                    # retry select
                     try:
                         cur.execute("SELECT patientID FROM patient WHERE national_id = %s", (nid,))
                         row = cur.fetchone()
@@ -352,26 +389,18 @@ def appointment():
                     raise
 
             if row:
-                # dict cursor or tuple
-                if isinstance(row, dict):
-                    patient_id = row.get('patientID')
-                else:
-                    patient_id = row[0]
+                patient_id = row.get('patientID') if isinstance(row, dict) else row[0]
             else:
-                # create new patient with name + national id
                 cur.execute("INSERT INTO patient (name, national_id) VALUES (%s, %s)", (patient_name or None, nid))
                 mysql.connection.commit()
                 patient_id = cur.lastrowid
 
-            # staff_id must be numeric
             staff_id_int = int(staff_id) if staff_id.isnumeric() else None
 
             if not patient_id or not staff_id_int or not atime:
                 cur.close()
                 return render_template('appointment.html', submitted=True, error='請提供有效的病患、醫師與時間.', patient=patient_input, staff=staff_id, atime=atime)
 
-            # Prevent duplicate booking: same patient (national id) cannot book the same session twice
-            # Determine session window based on appointment time
             try:
                 parts = atime.split(' ')
                 date_part = parts[0]
@@ -387,45 +416,40 @@ def appointment():
             ]
             session_start = None
             session_end = None
-            for s,e in SESSIONS:
+            for s, e in SESSIONS:
                 if time_part == s:
                     session_start = f"{date_part} {s}"
                     session_end = f"{date_part} {e}"
                     break
 
             if session_start and session_end:
-                cur.execute("SELECT COUNT(*) FROM appointment WHERE patientID = %s AND appointmentTime >= %s AND appointmentTime < %s", (patient_id, session_start, session_end))
+                cur.execute(
+                    "SELECT COUNT(*) FROM appointment WHERE patientID = %s AND appointmentTime >= %s AND appointmentTime < %s",
+                    (patient_id, session_start, session_end)
+                )
                 dup_row = cur.fetchone()
-                dup_count = 0
-                if isinstance(dup_row, dict):
-                    dup_count = next(iter(dup_row.values()))
-                else:
-                    dup_count = dup_row[0] if dup_row else 0
+                dup_count = next(iter(dup_row.values())) if isinstance(dup_row, dict) else (dup_row[0] if dup_row else 0)
                 if dup_count > 0:
                     cur.close()
                     return render_template('appointment.html', submitted=True, error='同一身分證已在此時段預約過', patient=patient_input, staff=staff_id, atime=atime)
 
-            # Reservation capacity check (prevent exceeding per-slot capacity)
             CAPACITY = 60
             cur.execute("SELECT COUNT(*) FROM appointment WHERE staffID = %s AND appointmentTime = %s", (staff_id_int, atime))
             cnt_row = cur.fetchone()
-            # support dict or tuple result
-            cur_count = None
-            if isinstance(cnt_row, dict):
-                cur_count = next(iter(cnt_row.values()))
-            else:
-                cur_count = cnt_row[0] if cnt_row else 0
+            cur_count = next(iter(cnt_row.values())) if isinstance(cnt_row, dict) else (cnt_row[0] if cnt_row else 0)
 
             if cur_count >= CAPACITY:
                 cur.close()
                 return render_template('appointment.html', submitted=True, error=f'此時段已額滿（{cur_count}/{CAPACITY}）', patient=patient_input, staff=staff_id, atime=atime)
 
-            # Insert appointment
-            cur.execute("INSERT INTO appointment (patientID, staffID, appointmentTime, status) VALUES (%s,%s,%s,%s)",
-                        (patient_id, staff_id_int, atime, 'booked'))
+            cur.execute(
+                "INSERT INTO appointment (patientID, staffID, appointmentTime, status) VALUES (%s,%s,%s,%s)",
+                (patient_id, staff_id_int, atime, 'booked')
+            )
             mysql.connection.commit()
             cur.close()
             return render_template('appointment.html', submitted=True, patient=patient_id, staff=staff_id_int, atime=atime, success=True)
+
         except Exception as e:
             return render_template('appointment.html', submitted=True, error=str(e), patient=patient_input, staff=staff_id, atime=atime)
 
@@ -434,37 +458,40 @@ def appointment():
 
 @app.route('/api/appointments')
 def api_appointments():
-    # Expects start and end query params (YYYY-MM-DD)
     start = request.args.get('start')
     end = request.args.get('end')
     try:
         cur = mysql.connection.cursor()
         if start and end:
-            cur.execute("SELECT appointmentID, patientID, staffID, appointmentTime, status FROM appointment WHERE appointmentTime >= %s AND appointmentTime < %s", (start, end))
+            cur.execute(
+                "SELECT appointmentID, patientID, staffID, appointmentTime, status FROM appointment WHERE appointmentTime >= %s AND appointmentTime < %s",
+                (start, end)
+            )
         else:
             cur.execute("SELECT appointmentID, patientID, staffID, appointmentTime, status FROM appointment")
+
         rows = cur.fetchall()
         cur.close()
 
-        # Convert rows to list of dicts (handles dictcursor or tuple)
         appts = []
         for r in rows:
             if isinstance(r, dict):
-                # ensure appointmentTime is a string
                 item = dict(r)
                 if 'appointmentTime' in item and item['appointmentTime'] is not None:
                     item['appointmentTime'] = str(item['appointmentTime'])
                 appts.append(item)
             else:
                 appts.append({
-                    'appointmentID': r[0], 'patientID': r[1], 'staffID': r[2], 'appointmentTime': str(r[3]), 'status': r[4]
+                    'appointmentID': r[0], 'patientID': r[1], 'staffID': r[2],
+                    'appointmentTime': str(r[3]), 'status': r[4]
                 })
-        return { 'appointments': appts }
+        return {'appointments': appts}
     except Exception as e:
-        return { 'error': str(e) }
+        return {'error': str(e)}
 
 
 @app.route('/api/staff')
+@require_demo_key
 def api_staff():
     try:
         cur = mysql.connection.cursor()
@@ -484,10 +511,8 @@ def api_staff():
 
 @app.route('/init_staff')
 def init_staff():
-    """Create two sample doctors if they don't exist. Safe to call multiple times."""
     try:
         cur = mysql.connection.cursor()
-        # check by name
         names = ['Dr. Chen', 'Dr. Lin']
         created = []
         for n in names:
@@ -498,9 +523,10 @@ def init_staff():
                 mysql.connection.commit()
                 created.append(n)
         cur.close()
-        return { 'created': created }
+        return {'created': created}
     except Exception as e:
-        return { 'error': str(e) }
+        return {'error': str(e)}
+
 
 @app.route("/debug/tables")
 def debug_tables():
@@ -508,21 +534,15 @@ def debug_tables():
     cur.execute("SHOW TABLES;")
     rows = cur.fetchall()
     cur.close()
-    # rows 可能是 [{'Tables_in_hospitalDB':'patients'}, ...] 或 [('patients',), ...]
     if rows and isinstance(rows[0], dict):
         tables = [list(r.values())[0] for r in rows]
     else:
         tables = [r[0] for r in rows]
     return {"tables": tables}
 
-# def ping():
-#     cur = mysql.connection.cursor()
-#     cur.execute("SELECT DATABASE();")
-#     dbname = cur.fetchone()[0]
-#     cur.close()
-#     return {"ok": True, "db": dbname}
 
-
+print("=== URL MAP ===")
+print(app.url_map)
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host="0.0.0.0", port=5000, debug=True)
